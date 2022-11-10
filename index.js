@@ -6,7 +6,7 @@
 
     const appConfig = {
 	mastodonRoute: '/mastodon/postPublish',
-	mastodonAccessToken: 'MbNqc0IEWdYWsCir9FAegQXcWBDq_94AeuqULJZw7dY',
+	mastodonAccessToken: 'Gt07ox7817B9rsKX4icC_6s7bV-LktUsGc-B3c-k9CA',
 	mastodonAPIUrl: 'https://mas.to/api/v1/',
     };
 
