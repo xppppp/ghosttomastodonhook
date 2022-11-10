@@ -26,12 +26,19 @@
     app.get('/', (req, res) => res.send('hook responder present.'));
     app.get('/ayt', (req, res) => res.send('Yes.'));
     app.post(appConfig.mastodonRoute, (req, res) => {
-	dbg('postpublish to mastodon: ' + JSON.stringify(req.body));
+	if (!req.body.post || !req.body.post.current) {
+	    dbg('malformed ghost publish body: ' + JSON.stringify(req.body));
+	    res.send(500);
+	    return;
+	}
+	    
+	dbg('postpublish to mastodon: ' +
+	    JSON.stringify(req.body.post.current));
 	let postParameters = {
-	    status: req.body.status,
+	    status: req.body.post.current.html,
 	};
-	if (req.body.feature_image) {
-	    axios.get(req.body.feature_image, {
+	if (req.body.post.current.feature_image) {
+	    axios.get(req.body.post.current.feature_image, {
 		responseType: 'stream'
 	    }).then((aResp) => {
 		m.post('/media', { file: aResp.data }).then((mmResp) => {
