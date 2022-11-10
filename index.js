@@ -1,7 +1,7 @@
 (function _hooks_init(port, debug) {
     const express = require('express');
     const bodyParser = require('body-parser');
-    const axios = require('axios').default;
+    const axios = require('axios');
     var Mastodon = require('mastodon');
 
     const appConfig = {
@@ -31,7 +31,7 @@
 	    res.send(500);
 	    return;
 	}
-	    
+	
 	dbg('postpublish to mastodon: ' +
 	    JSON.stringify(req.body.post.current));
 	let postParameters = {
