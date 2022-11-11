@@ -8,6 +8,7 @@
 	mastodonRoute: '/mastodon/postPublish',
 	mastodonAccessToken: 'Gt07ox7817B9rsKX4icC_6s7bV-LktUsGc-B3c-k9CA',
 	mastodonAPIUrl: 'https://mas.to/api/v1/',
+	ghostReplayTimeout: 60,
     };
 
     function dbg(msg) {
@@ -15,64 +16,91 @@
 	    console.log(msg);
 	}
     }
+    function nullPromise(ret) {
+	return(new Promise((npres, nprej) => { npres(ret); }));
+    }
 
     const app = express();
     var m = new Mastodon({
 	access_token: appConfig.mastodonAccessToken,
 	api_url: appConfig.mastodonAPIUrl
     });
+    var inProgress = {};
     app.use(bodyParser.urlencoded({ extended: false }));
     app.use(bodyParser.json());
     app.get('/', (req, res) => res.send('hook responder present.'));
     app.get('/ayt', (req, res) => res.send('Yes.'));
     app.post(appConfig.mastodonRoute, (req, res) => {
-	if (!req.body.post || !req.body.post.current) {
-	    dbg('malformed ghost publish body: ' + JSON.stringify(req.body));
-	    res.send(500);
-	    return;
-	}
-	
 	dbg('postpublish to mastodon: ' +
 	    JSON.stringify(req.body.post.current));
-	let postParameters = {
-	    status: req.body.post.current.html,
-	};
-	if (req.body.post.current.feature_image) {
-	    axios.get(req.body.post.current.feature_image, {
-		responseType: 'stream'
-	    }).then((aResp) => {
-		m.post('/media', { file: aResp.data }).then((mmResp) => {
+	if (req.body.post.current.id) {
+	    let ghostID = req.body.post.current.id;
+	    if (inProgress[ghostID]) {
+		if (inProgress[ghostID].done) {
+		    dbg('postpublish already complete for ' + ghostID);
+		    res.status(inProgress[ghostID].status).
+			send(inProgress[ghostID].data);
+		} else {
+		    dbg('postpublish in progress ' + ghostID);
+		    res.end();
+		}
+	    } else {
+		let postParameters = {
+		    status: req.body.post.current.html,
+		};
+		inProgress[ghostID] = {
+		    done: false,
+		    status: 500,
+		};
+		let tlp;
+		if (req.body.post.current.feature_image) {
+		    tlp = axios.get(req.body.post.current.feature_image, {
+			    responseType: 'stream'
+		    });
+		} else {
+		    tlp = nullPromise({nomedia:true});
+		}
+		tlp.then((aResp) => {
+		    if (aResp.nomedia) {
+			return(nullPromise({nomedia:true}));
+		    } else {
+			return(m.post('/media', { file: aResp.data }));
+		    }
+		}).then((mmResp) => {
 		    dbg('postpublish to mastodon media: ' +
 			JSON.stringify(mmResp.data));
-		    if (mmResp && mmResp.data && !mmResp.data.error) {
-			if (mmResp.data.id) {
-			    postParameters.media_ids = [ mmResp.data.id ];
-			}
-			m.post('/statuses', postParameters).then((msResp) => {
-			    if (msResp && msResp.data) {
-				dbg('postpublish mastodon status w/media: ' +
-				    JSON.stringify(msResp.data));
-				res.send(msResp.data);
-			    } else {
-				res.send(400);
-			    }
-			});
-		    } else {
-			res.send((mmResp && mmResp.data) ?
-				 mmResp.data.error : 401);
+		    if (mmResp.data && mmResp.data.id) {
+			postParameters.media_ids = [ mmResp.data.id ];
 		    }
+		    return(m.post('/statuses', postParameters));
+		}).then((msResp) => {
+		    inProgress[ghostID].done = true;
+		    if (msResp && msResp.data) {
+			dbg('postpublish mastodon status: ' +
+			    JSON.stringify(msResp.data));
+			inProgress[ghostID].status = 200;
+			inProgress[ghostID].data = msResp.data;
+		    } else {
+			dbg('postpublish mastodon status: no response data');
+			inProgress[ghostID].status = 400;
+			inProgress[ghostID].data =
+			    { error: 'mastodon publish missing status' };
+		    }
+		}).catch((error) => {
+		    dbg('postpublish mastodon status failure: exception');
+		    inProgress[ghostID].done = true;
+		    inProgress[ghostID].status = 500;
+		    inProgress[ghostID].data = error;
+		}).finally(() => {
+		    res.status(inProgress[ghostID].status).send(inProgress[ghostID].data);
+		    setTimeout(() => {
+			dbg('cleaning up replay entry for: ' + ghostID);
+			delete(inProgress[ghostID]);
+		    }, appConfig.ghostReplayTimeout * 1000);
 		});
-	    });
+	    }
 	} else {
-	    m.post('/statuses', postParameters).then((mResp) => {
-		if (mResp && mResp.data) {
-		    dbg('postpublish mastodon status only success: ' +
-			JSON.stringify(mResp.data));
-		    res.send(mResp.data);
-		} else {
-		    res.send(400);
-		}
-	    });
+	    res.status(500).send({error: 'no ghost post id'});
 	}
     });
     app.listen(port, () => {
