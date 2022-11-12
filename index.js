@@ -46,7 +46,7 @@
 		}
 	    } else {
 		let postParameters = {
-		    status: req.body.post.current.html,
+		    status: req.body.post.current.plaintext,
 		};
 		inProgress[ghostID] = {
 		    done: false,
@@ -54,16 +54,20 @@
 		};
 		let tlp;
 		if (req.body.post.current.feature_image) {
+		    dbg('getting ' + req.body.post.current.feature_image);
 		    tlp = axios.get(req.body.post.current.feature_image, {
 			    responseType: 'stream'
 		    });
 		} else {
+		    dbg('no image');
 		    tlp = nullPromise({nomedia:true});
 		}
 		tlp.then((aResp) => {
 		    if (aResp.nomedia) {
+			dbg('no image 2');
 			return(nullPromise({nomedia:true}));
 		    } else {
+			dbg('mastodon posting image');
 			return(m.post('/media', { file: aResp.data }));
 		    }
 		}).then((mmResp) => {
@@ -87,7 +91,8 @@
 			    { error: 'mastodon publish missing status' };
 		    }
 		}).catch((error) => {
-		    dbg('postpublish mastodon status failure: exception');
+		    dbg('postpublish mastodon status failure: ' +
+			JSON.stringify(error));
 		    inProgress[ghostID].done = true;
 		    inProgress[ghostID].status = 500;
 		    inProgress[ghostID].data = error;
