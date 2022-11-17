@@ -9,6 +9,7 @@
 	mastodonAccessToken: 'Gt07ox7817B9rsKX4icC_6s7bV-LktUsGc-B3c-k9CA',
 	mastodonAPIUrl: 'https://mas.to/api/v1/',
 	ghostReplayTimeout: 60,
+	mastodonMaxStatusLength: 450,
     };
 
     function dbg(msg) {
@@ -18,6 +19,16 @@
     }
     function nullPromise(ret) {
 	return(new Promise((npres, nprej) => { npres(ret); }));
+    }
+    function makeMastodonStatus(gp) {
+	let s = gp.plaintext;
+	if (gp.url) {
+	    s = 'Original: ' + gp.url + '\n' + s;
+	}
+	if (s.length > appConfig.mastodonMaxStatusLength) {
+	    s = s.substring(0, appConfig.mastodonMaxStatusLength - 3) + '...';
+	}
+	return(s);
     }
 
     const app = express();
@@ -46,7 +57,7 @@
 		}
 	    } else {
 		let postParameters = {
-		    status: req.body.post.current.plaintext,
+		    status: makeMastodonStatus(req.body.post.current),
 		};
 		inProgress[ghostID] = {
 		    done: false,
