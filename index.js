@@ -126,10 +126,14 @@
 			pubkey: protoConfig._pk,
 			created_at: Math.floor((post.created_at ? (new Date(post.created_at)) : Date.now()) / 1000),
 			tags: [],
-			title: post.title,
-			image: post.feature_image,
 			content: nhm.translate(post.html),
 		    };
+		    if (post.title && post.title.length) {
+			event.tags.push(["title", post.title]);
+		    }
+		    if (post.feature_image && post.feature_image.length) {
+			event.tags.push(["image", post.feature_image]);
+		    }
 		    try {
 			let pko = bech32.bech32.decode(protoConfig._pk);
 			if (pko.prefix == 'npub') {
